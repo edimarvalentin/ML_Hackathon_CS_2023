@@ -23,20 +23,15 @@ class SpaceshipGameEnv(gym.Env):
 
         self.action_space = spaces.Discrete(4)
         self.observation_space = spaces.Box(
-            low=0, high=1200, shape=(20,), dtype=np.float32)
+            low=0, high=1200, shape=(25,), dtype=np.float32)
 
         self.game = Game(SCREEN_WIDTH, SCREEN_HEIGHT, "Spaceship Game")
-        print("new Game from Init")
+
         self.game.setup()
 
-    def calculate_reward(self, done):
+    def calculate_reward(self, done, done_reward):
         if done:
-            if self.game.is_running:
-                # Reward for reaching the green planet
-                return 100
-            else:
-                # Penalty for going out of bounds
-                return -100
+            return done_reward
 
         # Compute the distance to the target planet
         target_planet = self.game.planets[self.game.green_planet_index]
@@ -54,16 +49,17 @@ class SpaceshipGameEnv(gym.Env):
 
     def step(self, action):
         self.game.action(action)
-        _, done = self.game.on_update(1 / 60)
+        done_reward, done = self.game.on_update(1 / 60)
         obs = self.get_observation()
-        reward = self.calculate_reward(done)
+        reward = self.calculate_reward(done, done_reward)
 
         return obs, reward, done, {}
 
     def get_observation(self):
         planets_data = []
         for planet in self.game.planets:
-            planets_data.extend([planet.x, planet.y, planet.size])
+            planets_data.extend(
+                [planet.x, planet.y, planet.size, planet.is_green])
         spaceship_data = [self.game.spaceship.x,
                           self.game.spaceship.y, self.game.spaceship.angle, self.game.spaceship.velocity_x, self.game.spaceship.velocity_y]
         return np.array(spaceship_data + planets_data)
@@ -74,9 +70,9 @@ class SpaceshipGameEnv(gym.Env):
         return self.get_observation()
 
     def render(self, mode='human'):
-        print("rendering")
+
         if mode == 'human':
-            print("rendering")
+
             arcade.start_render()
             self.game.on_draw()
             arcade.finish_render()
