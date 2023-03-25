@@ -4,6 +4,7 @@ import pyglet
 import math
 import numpy as np
 
+
 SCREEN_WIDTH = 1200
 SCREEN_HEIGHT = 800
 SPACESHIP_SPEED = 0.01
@@ -43,18 +44,33 @@ class Spaceship:
         return distance <= (planet.size + 15 + (20 if planet.is_green else 0))
 
 
+    def getDistance(self, planet):
+        dx = planet.x - self.x
+        dy = planet.y - self.y
+        distance = math.sqrt(dx**2 + dy**2)
+        return distance
+
+
+
 class Planet:
     def __init__(self, x, y, size, is_green):
         self.x = x
         self.y = y
         self.size = size
         self.is_green = is_green
+        # self.is_white = is_white
 
     def draw(self):
         color = arcade.color.GREEN if self.is_green else arcade.color.WHITE
         arcade.draw_circle_filled(self.x, self.y, self.size, color)
         if self.is_green:
             arcade.draw_circle_outline(self.x, self.y, self.size + 20, color)
+
+    def getDistance(self):
+        dx = SCREEN_WIDTH - self.x
+        dy = SCREEN_HEIGHT - self.y
+        distance = math.sqrt(dx**2 + dy**2)
+        return distance
 
 
 class Game(arcade.Window):
@@ -82,15 +98,36 @@ class Game(arcade.Window):
 
     def on_update(self, delta_time):
         for planet in self.planets:
+
             if planet.is_green and self.spaceship.collides_with(planet):
                 arcade.draw_text("Congratulations!", SCREEN_WIDTH/2, SCREEN_HEIGHT/2,
                                  arcade.color.WHITE, font_size=50, anchor_x="center")
                 print("you won!!!")
                 self.is_running = False
+                # Reset to Test
+                self.reset()
                 return (100, True)
+
+
             self.spaceship.apply_gravity(planet)
+        
+        if self.spaceship.getDistance(planet) == planet.getDistance():
+            return (-100)
+        
+        if planet.is_green and self.spaceship.getDistance(planet) > planet.getDistance():
+            return (-80, True)
+
+        if planet.is_green and self.spaceship.getDistance(planet) < planet.getDistance():
+            return (75, True)
+    
+
+
+
+
         if self.spaceship.x < 0 or self.spaceship.x > SCREEN_WIDTH or self.spaceship.y < 0 or self.spaceship.y > SCREEN_HEIGHT:
             self.is_running = False
+            # Reset to Test
+            self.reset()
             return (-100, True)
         self.spaceship.move(SPACESHIP_SPEED, self.spaceship.angle)
         return (0, False)
@@ -172,8 +209,8 @@ class Game(arcade.Window):
 def main():
     game = Game(SCREEN_WIDTH, SCREEN_HEIGHT, "Spaceship Game")
     game.setup()
-    # arcade.run()
-    game.run()
+    arcade.run()
+    # game.run()
 
 
 if __name__ == '__main__':
