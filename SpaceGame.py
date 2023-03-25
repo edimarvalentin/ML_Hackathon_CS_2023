@@ -10,6 +10,7 @@ SPACESHIP_SPEED = 0.01
 GRAVITATIONAL_FORCE = 5
 
 
+
 class Spaceship:
     def __init__(self, x, y):
         self.x = x
@@ -62,6 +63,7 @@ class Game(arcade.Window):
     def __init__(self, width, height, title):
         super().__init__(width, height, title)
         self.is_running = True
+        self.game_count = 0
 
         self.push_handlers(on_key_press=self.on_key_press)
         # print(self.get_event_handlers)
@@ -87,10 +89,12 @@ class Game(arcade.Window):
                                  arcade.color.WHITE, font_size=50, anchor_x="center")
                 print("you won!!!")
                 self.is_running = False
+                self.reset()
                 return (100, True)
             self.spaceship.apply_gravity(planet)
         if self.spaceship.x < 0 or self.spaceship.x > SCREEN_WIDTH or self.spaceship.y < 0 or self.spaceship.y > SCREEN_HEIGHT:
             self.is_running = False
+            self.reset()
             return (-100, True)
         self.spaceship.move(SPACESHIP_SPEED, self.spaceship.angle)
         return (0, False)
@@ -146,6 +150,8 @@ class Game(arcade.Window):
                 self.close()
 
     def reset(self):
+        self.game_count += 1
+        print(self.game_count)
         self.is_running = True
         self.planets = []
         self.green_planet_index = random.randint(0, 4)
