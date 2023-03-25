@@ -1,21 +1,11 @@
+from arcade import Point
 import torch
 import random
 import numpy as np
 from collections import deque
-import matplotlib
-import matplotlib.pyplot as plt
-import gymnasium as gym
-from collections import namedtuple
-from itertools import count
-
-import torch
-import torch.nn as nn
-import torch.optim as optim
-import torch.nn.functional as F
-
-
-from SpaceGame import Spaceship
+from SpaceGame import Game, Point
 from model import Linear_QNet, QTrainer
+from helper import plot
 
 MAX_MEMORY = 100_000
 BATCH_SIZE = 1000
@@ -33,35 +23,35 @@ class Agent:
 
 
     def get_state(self, game):
-        head = game.snake[0]
-        point_l = Point(head.x - 20, head.y)
-        point_r = Point(head.x + 20, head.y)
-        point_u = Point(head.x, head.y - 20)
-        point_d = Point(head.x, head.y + 20)
+        Sship = self.spaceship
+        point_l = Point(Sship.x - 20, Sship.y)
+        point_r = Point(Sship.x + 20, Sship.y)
+        point_u = Point(Sship.x, Sship.y - 20)
+        point_d = Point(Sship.x, Sship.y + 20)
         
-        dir_l = game.direction == Direction.LEFT
-        dir_r = game.direction == Direction.RIGHT
-        dir_u = game.direction == Direction.UP
-        dir_d = game.direction == Direction.DOWN
+        dir_l = game.action == 0 #Left direction
+        dir_r = game.action == 1 #Right direction
+        dir_u = game.action == 2 #Up direction
+        dir_d = game.action == 3 #Down direction
 
         state = [
             # Danger straight
-            (dir_r and game.is_collision(point_r)) or 
-            (dir_l and game.is_collision(point_l)) or 
-            (dir_u and game.is_collision(point_u)) or 
-            (dir_d and game.is_collision(point_d)),
+            (dir_r and point_r.collides_with(game.planet.is_green)) or 
+            (dir_l and point_l.collides_with(game.planet.is_green)) or 
+            (dir_u and point_u.collides_with(game.planet.is_green)) or 
+            (dir_d and point_d.collides_with(game.planet.is_green)),
 
             # Danger right
-            (dir_u and game.is_collision(point_r)) or 
-            (dir_d and game.is_collision(point_l)) or 
-            (dir_l and game.is_collision(point_u)) or 
-            (dir_r and game.is_collision(point_d)),
+            (dir_u and point_r.collides_with(game.planet.is_green)) or 
+            (dir_d and point_l.collides_with(game.planet.is_green)) or 
+            (dir_l and point_u.collides_with(game.planet.is_green)) or 
+            (dir_r and point_d.collides_with(game.planet.is_green)),
 
             # Danger left
-            (dir_d and game.is_collision(point_r)) or 
-            (dir_u and game.is_collision(point_l)) or 
-            (dir_r and game.is_collision(point_u)) or 
-            (dir_l and game.is_collision(point_d)),
+            (dir_d and point_r.collides_with(game.planet.is_green)) or 
+            (dir_u and point_l.collides_with(game.planet.is_green)) or 
+            (dir_r and point_u.collides_with(game.planet.is_green)) or 
+            (dir_l and point_d.collides_with(game.planet.is_green)),
             
             # Move direction
             dir_l,
@@ -69,11 +59,11 @@ class Agent:
             dir_u,
             dir_d,
             
-            # Food location 
-            game.food.x < game.head.x,  # food left
-            game.food.x > game.head.x,  # food right
-            game.food.y < game.head.y,  # food up
-            game.food.y > game.head.y  # food down
+            # Green Planet location 
+            game.planet.is_green.x < game.Sship.x,  #  Green Planet left
+            game.planet.is_green.x > game.Sship.x,  # Green Planet right
+            game.planet.is_green.y < game.Sship.y,  # Green Planet up
+            game.planet.is_green.y > game.Sship.y  # Green Planet down
             ]
 
         return np.array(state, dtype=int)
@@ -89,7 +79,7 @@ class Agent:
 
         states, actions, rewards, next_states, dones = zip(*mini_sample)
         self.trainer.train_step(states, actions, rewards, next_states, dones)
-        #for state, action, reward, nexrt_state, done in mini_sample:
+        #for state, action, reward, next_state, done in mini_sample:
         #    self.trainer.train_step(state, action, reward, next_state, done)
 
     def train_short_memory(self, state, action, reward, next_state, done):
@@ -117,7 +107,7 @@ def train():
     total_score = 0
     record = 0
     agent = Agent()
-    game = SpaceGame()
+    game = Game()
     while True:
         # get old state
         state_old = agent.get_state(game)

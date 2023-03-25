@@ -3,6 +3,7 @@ import random
 import pyglet
 import math
 import numpy as np
+from collections import namedtuple
 
 
 SCREEN_WIDTH = 1200
@@ -10,6 +11,7 @@ SCREEN_HEIGHT = 800
 SPACESHIP_SPEED = 0.01
 GRAVITATIONAL_FORCE = 5
 
+Point = namedtuple('Point', 'x, y')
 
 class Spaceship:
     def __init__(self, x, y):
