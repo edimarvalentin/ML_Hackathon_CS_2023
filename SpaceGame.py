@@ -4,11 +4,13 @@ import pyglet
 import math
 import numpy as np
 
+from Helper import plot
+from Agent import Agent
+
 SCREEN_WIDTH = 1200
 SCREEN_HEIGHT = 800
 SPACESHIP_SPEED = 0.01
 GRAVITATIONAL_FORCE = 5
-
 
 
 class Spaceship:
@@ -18,6 +20,7 @@ class Spaceship:
         self.velocity_x = 0
         self.velocity_y = 0
         self.angle = 0
+        self.pulling_planet = None
 
     def draw(self):
         arcade.draw_rectangle_filled(
@@ -30,10 +33,23 @@ class Spaceship:
         self.y += self.velocity_y
 
     def apply_gravity(self, planet):
+        # Gravity of planet
         dx = planet.x - self.x
         dy = planet.y - self.y
         distance = math.sqrt(dx**2 + dy**2)
         force = GRAVITATIONAL_FORCE * planet.size / distance**2
+
+        # Gravity of current strongest planet
+        if self.pulling_planet is not None:
+            d2x = self.pulling_planet.x - self.x
+            d2y = self.pulling_planet.y - self.y
+            distance = math.sqrt(d2x**2 + d2y**2)
+            old_force = GRAVITATIONAL_FORCE * self.pulling_planet.size / distance**2
+            if force > old_force:
+                self.pulling_planet = planet
+        else:
+            self.pulling_planet = planet
+
         angle = math.degrees(math.atan2(dy, dx))
         self.move(force, angle)
 
@@ -42,6 +58,7 @@ class Spaceship:
         dy = planet.y - self.y
         distance = math.sqrt(dx**2 + dy**2)
         return distance <= (planet.size + 15 + (20 if planet.is_green else 0))
+
 
 
 class Planet:
@@ -60,11 +77,9 @@ class Planet:
 
 class Game(arcade.Window):
 
-    def __init__(self, width, height, title):
-        super().__init__(width, height, title)
+    def __init__(self, title):
+        super().__init__(SCREEN_WIDTH, SCREEN_HEIGHT, title)
         self.is_running = True
-        self.game_count = 0
-
         self.push_handlers(on_key_press=self.on_key_press)
         # print(self.get_event_handlers)
 
@@ -89,15 +104,14 @@ class Game(arcade.Window):
                                  arcade.color.WHITE, font_size=50, anchor_x="center")
                 print("you won!!!")
                 self.is_running = False
-                self.reset()
-                return (100, True)
+                # reward done, score
+                return (100, True, 1)
             self.spaceship.apply_gravity(planet)
         if self.spaceship.x < 0 or self.spaceship.x > SCREEN_WIDTH or self.spaceship.y < 0 or self.spaceship.y > SCREEN_HEIGHT:
             self.is_running = False
-            self.reset()
-            return (-100, True)
+            return (-100, True, 0)
         self.spaceship.move(SPACESHIP_SPEED, self.spaceship.angle)
-        return (0, False)
+        return (0, False, 0)
 
     def on_draw(self):
         if self.is_running:
@@ -118,40 +132,77 @@ class Game(arcade.Window):
         print("Key pressed:", key)
 
     def action(self, action):
-        if action == 0:
-            self.spaceship.angle = 180
-        elif action == 1:
-            self.spaceship.angle = 0
-        elif action == 2:
+        if np.array_equal(action, [1, 0, 0, 0]):  # up
             self.spaceship.angle = 90
-        elif action == 3:
+        elif np.array_equal(action, [0, 1, 0, 0]):  # down
             self.spaceship.angle = 270
+        elif np.array_equal(action, [0, 0, 1, 0]):  # left
+            self.spaceship.angle = 180
+        elif np.array_equal(action, [0, 0, 0, 1]):  # right
+            self.spaceship.angle = 0
 
     def run(self):
         # Set up the game loop
+        plot_scores = []
+        plot_mean_scores = []
+        total_score = 0
+        record = 0
+
+        agent = Agent()
+
         while True:
+            # get state of the game
+            state_old = agent.get_state(self)
+
+            # conjure up a move using the forbidden dark arts
+            final_move = agent.get_action(state_old)
+            # get whatever resulted from that move
+            self.action(final_move)
             # Call the update() method with the time since the last frame
-            self.on_update(1/60)
+            reward, done, score = self.on_update(1/60)
+            if(done):
+                print(reward)
+            state_new = agent.get_state(self)
+
+            # train the short memory
+            agent.train_short_memory(
+                state_old, final_move, reward, state_new, done)
+
+            # remember
+            agent.remember(state_old, final_move, reward, state_new, done)
+
+            if done:
+                # train the long memory
+                self.reset()
+                agent.n_games += 1
+
+                if score > record:
+                    record = score
+                    agent.model.save()
+
+                plot_scores.append(score)
+                total_score += score
+                mean_score = total_score / agent.n_games
+                plot_mean_scores.append(mean_score)
+                plot(plot_scores, plot_mean_scores)
 
             if self.is_running:
 
-                # Clear the screen
+                    # Clear the screen
                 arcade.start_render()
 
-                # Call the on_draw() method to draw the game objects
+                    # Call the on_draw() method to draw the game objects
                 self.on_draw()
 
-                # Swap buffers to display the rendered frame
+                    # Swap buffers to display the rendered frame
                 arcade.finish_render()
 
-                # Sleep to enforce the desired frame rate
+                    # Sleep to enforce the desired frame rate
                 arcade.pause(1/60)
             else:
                 self.close()
 
     def reset(self):
-        self.game_count += 1
-        print(self.game_count)
         self.is_running = True
         self.planets = []
         self.green_planet_index = random.randint(0, 4)
@@ -174,11 +225,19 @@ class Game(arcade.Window):
         arr = arr.reshape(buffer.height, buffer.width, 4)
         return arr[::-1]
 
+    def get_spaceship(self):
+        return self.spaceship
+
+    def get_screen_width(self):
+        return SCREEN_WIDTH
+
+    def get_screen_height(self):
+        return SCREEN_HEIGHT
+
 
 def main():
-    game = Game(SCREEN_WIDTH, SCREEN_HEIGHT, "Spaceship Game")
+    game = Game('Spaceship Game')
     game.setup()
-    # arcade.run()
     game.run()
 
 
